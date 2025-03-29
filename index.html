@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrivateChat - Secure Messaging</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="socket.io.js"></script>
+    <script src="main.js"></script>
+    < <!-- Socket.IO client -->
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>PrivateChat</h1>
+            <p>Secure, private conversations in real-time</p>
+        </header>
+        <!-- Home Page -->
+        <section id="home">
+            <div class="home-options">
+                <div class="option-card" onclick="showSection('host-login')">
+                    <div class="option-icon">👤</div>
+                    <h2>Host Login</h2>
+                    <p>Create your own private chat room and invite others</p>
+                </div>
+                <div class="option-card" onclick="showSection('join-room')">
+                    <div class="option-icon">🚪</div>
+                    <h2>Join</h2>
+                    <p>Enter an existing room with a room ID</p>
+                </div>
+            </div>
+        </section>
+        <!-- Host Login Page -->
+        <section id="host-login"><button class="back-btn" onclick="showSection('home')">← Back</button>
+            <div class="form-container">
+                <h2>Host Login</h2>
+                <form id="host-form">
+                    <div class="form-group"><label for="name">Name</label><input type="text" id="name" placeholder="Your full name" required></div>
+                    <div class="form-group"><label for="username">Username</label><input type="text" id="username" placeholder="Choose a username" required></div>
+                    <div class="form-group"><label for="password">Password</label><input type="password" id="password" placeholder="Create a password" required></div><button type="submit">Create Room</button></form>
+                <div class="room-info" id="room-info" style="display: none;">
+                    <h3>Your Room is Ready!</h3>
+                    <p>Share this Room ID with people you want to join:</p>
+                    <div class="room-id" id="room-id">-</div><button class="copy-btn" onclick="copyRoomId()">Copy ID</button><button onclick="enterChatRoom('host')" style="margin-top: 20px;">Enter Chat Room</button></div>
+            </div>
+        </section>
+        <!-- Join Room Page -->
+        <section id="join-room"><button class="back-btn" onclick="showSection('home')">← Back</button>
+            <div class="form-container">
+                <h2>Join a Room</h2>
+                <form id="join-form">
+                    <div class="form-group"><label for="join-username">Username</label><input type="text" id="join-username" placeholder="Choose a username" required></div>
+                    <div class="form-group"><label for="room-id-input">Room ID</label><input type="text" id="room-id-input" placeholder="Enter the Room ID" required></div><button type="submit">Join Room</button></form>
+            </div>
+        </section>
+        <!-- Chat Room Page -->
+        <section id="chat-room">
+            <div class="chat-container">
+                <div class="chat-sidebar">
+                    <div class="room-header">
+                        <div class="room-name" id="display-room-id">Room: XYZ123</div><button class="back-btn" style="margin: 0; padding: 5px 10px;" onclick="leaveRoom()">Leave</button></div>
+                    <div class="user-list">
+                        <h3>Online Users</h3>
+                        <div class="user">
+                            <div class="user-avatar">H</div>
+                            <div class="user-name" id="current-user">Host User</div>
+                        </div>
+                        <div id="other-users">
+                            <!-- Other users will be added dynamically -->
+                        </div>
+                    </div>
+                </div>
+                <div class="chat-main">
+                    <div class="chat-header">
+                        <h2>Private Chat</h2>
+                        <div id="connection-status" style="color: var(--success-color);">● Connected</div>
+                    </div>
+                    <div class="chat-messages" id="messages">
+                        <!-- Messages will appear here -->
+                        <div class="message received">
+                            <div>Welcome to the chat room! This room is end-to-end encrypted.</div>
+                            <div class="message-info"><span>System</span><span>Just now</span></div>
+                        </div>
+                    </div>
+                    <div class="chat-input"><input type="text" id="message-input" placeholder="Type your message..."><button class="send-btn" onclick="sendMessage()">Send</button></div>
+                </div>
+            </div>
+        </section>
+        <div>
+            <script>
+                // Connect to the server
+                const socket = io();
+
+                // Example: Receiving a message
+                socket.on("message", (data) => {
+                    console.log("Message from server:", data);
+                });
+
+                // Example: Sending a message to the server
+                socket.emit("basicEmit", 1, "Hello", [10, 20, 30]);
+
+                // Example: Joining a room
+                socket.emit("joinRoom", "room1");
+
+                // Example: Leaving a room
+                socket.emit("leaveRoom", "room1");
+            </script>
+        </div>
+    </div>
+    <script>
+        // Global variables
+        let currentUser = '';
+        let currentRoom = '';
+        let isHost = false;
+        let users = [];
+        // Function to switch between sections
+        function showSection(sectionId) {
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('host-login').style.display = 'none';
+            document.getElementById('join-room').style.display = 'none';
+            document.getElementById('chat-room').style.display = 'none';
+            document.getElementById(sectionId).style.display = 'block';
+        }
+
+        // Generate a random room ID
+        function generateRoomId() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 8; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        // Copy room ID to clipboard
+        function copyRoomId() {
+            const roomId = document.getElementById('room-id').textContent;
+            navigator.clipboard.writeText(roomId).then(() => {
+                alert('Room ID copied to clipboard!');
+            });
+        }
+
+        // Handle host form submission
+        document.getElementById('host-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const name = document.getElementById('name').value;
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                if (name && username && password) {
+                    currentUser = username;
+                    currentRoom = generateRoomId();
+                    isHost = true;
+                    // Display room ID
+                    document.getElementById('room-id').textContent = currentRoom;
+                    document.getElementById('room-info').style.display = 'block';
+                    // Add host to users array
+                    users = [{
+                        username: username,
+                        isHost: true
+                    }];
+                    // In a real application, you would store this information in a database
+                    console.log("Host created:", {
+                        name,
+                        username,
+                        password,
+                        roomId: currentRoom
+                    });
+                }
+            }
+
+        );
+        // Handle join form submission
+        document.getElementById('join-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const username = document.getElementById('join-username').value;
+                const roomId = document.getElementById('room-id-input').value;
+                if (username && roomId) {
+                    // In a real application, you would check if the room exists
+                    currentUser = username;
+                    currentRoom = roomId;
+                    isHost = false;
+                    // Add user to users array
+                    users.push({
+                        username: username,
+                        isHost: false
+                    });
+                    // Enter chat room
+                    enterChatRoom('guest');
+                }
+            }
+
+        );
+        // Enter chat room
+        function enterChatRoom(role) {
+            document.getElementById('current-user').textContent = currentUser + (role === 'host' ? ' (Host)' : '');
+            document.getElementById('display-room-id').textContent = 'Room: ' + currentRoom;
+            // In a real application, you would connect to a WebSocket or similar
+            showSection('chat-room');
+            // Simulate another user joining (only for demo)
+            if (role === 'host') {
+                setTimeout(() => {
+                    addUser('Guest123');
+                    addMessage('Guest123', 'Hello! I just joined the chat.', 'received');
+                }, 2000);
+            }
+        }
+
+        // Leave room
+        function leaveRoom() {
+            // In a real application, you would disconnect from WebSocket
+            currentUser = '';
+            currentRoom = '';
+            isHost = false;
+            users = [];
+            // Clear messages
+            document.getElementById('messages').innerHTML = ` <div class="message received"><div>Welcome to the chat room! This room is end-to-end encrypted.</div><div class="message-info"><span>System</span><span>Just now</span></div></div>`;
+            // Clear other users
+            document.getElementById('other-users').innerHTML = '';
+            // Go back to home
+            showSection('home');
+        }
+
+        // Add a user to the user list
+        function addUser(username) {
+            const initial = username.charAt(0).toUpperCase();
+            const userHtml = `
+        <div class="user">
+            <div class="user-avatar">${initial}</div>
+            <div class="user-name">${username}</div>
+        </div>
+    `;
+            document.getElementById('other-users').innerHTML += userHtml;
+
+            // Add system message
+            addMessage('System', `${username} has joined the room.`, 'received');
+        }
+
+        // Send a message
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            if (message) {
+                addMessage(currentUser, message, 'sent');
+                messageInput.value = '';
+                // Simulate response (for demo purposes)
+                if (!isHost) {
+                    setTimeout(() => {
+                        addMessage('Host', 'Thanks for your message!', 'received');
+                    }, 1500);
+                } else {}
+            }
+        }
+
+        // Add message to chat
+        function addMessage(sender, text, type) {
+            const now = new Date();
+            const time = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
+
+            const messageHtml = `
+        <div class="message ${type}">
+            <div>${text}</div>
+            <div class="message-info">
+                <span>${sender}</span>
+                <span>${time}</span>
+            </div>
+        </div>
+    `;
+
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML += messageHtml;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Add event listener for pressing Enter to send message
+        document.getElementById('message-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            }
+
+        );
+    </script>
+</body>
+
+</html>
